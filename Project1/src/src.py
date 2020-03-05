@@ -33,8 +33,8 @@ def doc_vector_dot(vec1, vec2):
 
 
 def custom_tokenize(s):
-    # s = s.lower()  # lower case
-    # s = re.sub(" \d+", " ", s)  # remove number
+    s = s.lower()  # lower case
+    s = re.sub(" \d+", " ", s)  # remove number
     tks = list(filter(lambda x: x not in set(stopwords.words('english')),
                       nltk.word_tokenize(s)))  # tokenize and filter stop words
     # PUNC = set(string.punctuation)

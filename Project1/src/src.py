@@ -1,10 +1,19 @@
 import argparse
 import math
 import nltk
+import string
+import re
 
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
 
-# nltk.download('punkt')
-# nltk.download('averaged_perceptron_tagger')
+lemmatizer = WordNetLemmatizer()
+
+nltk.download('punkt')
+nltk.download('averaged_perceptron_tagger')
+nltk.download('wordnet')
+nltk.download('stopwords')
+
 
 def normalize_doc(term_weights_doc):
     norm = 0.0
@@ -21,6 +30,19 @@ def doc_vector_dot(vec1, vec2):
     for term in common:
         ret += vec1[term] * vec2[term]
     return ret
+
+
+def custom_tokenize(s):
+    # s = s.lower()  # lower case
+    # s = re.sub(" \d+", " ", s)  # remove number
+    tks = list(filter(lambda x: x not in set(stopwords.words('english')),
+                      nltk.word_tokenize(s)))  # tokenize and filter stop words
+    # PUNC = set(string.punctuation)
+    # tks = list(filter(lambda x: x[0] not in PUNC, map(lamb    da x: list(x), nltk.pos_tag(tks))))  # pos tag
+    # for tk in tks:
+    #     tk[0] = lemmatizer.lemmatize(tk[0])  # lemmatization
+    # tks = map(lambda x: x[0], tks)  # incorporate POS
+    return tks
 
 
 parser = argparse.ArgumentParser(description="Text Categorization Script")
@@ -43,8 +65,8 @@ test_docs = list(map(lambda x: TEST_SET_CORPUS_PATH + x[1:], filter(lambda x: x 
 
 N = float(len(train_docs))
 
-ALPHA = 0.7
-BETA = 0.3
+ALPHA = 0.8
+BETA = 0.2
 
 tf_cnt = {}
 df = {}
@@ -58,15 +80,13 @@ categories_vec = {}
 for doc_full in train_docs:
     doc = doc_full[0].split("/")[-1]
     sentence = open(doc_full[0], "r").read()
-    doc_tokens = nltk.word_tokenize(sentence)
-    doc_tokens = nltk.pos_tag(doc_tokens)
-    doc_tokens = map(lambda x: x[0] + x[1], doc_tokens)
+    doc_tokens = custom_tokenize(sentence)
     tf_cnt[doc] = {}
     for token in doc_tokens:
         if token not in tf_cnt[doc]:
             tf_cnt[doc][token] = 0.0
         tf_cnt[doc][token] = tf_cnt[doc][token] + 1
-    for token in tf_cnt[doc].keys():
+    for token in doc_tokens:
         if token not in df:
             df[token] = 0.0
         df[token] = df[token] + 1
@@ -101,7 +121,8 @@ for category in categories_cnt.keys():
             for token in term_weights[doc]:
                 if token not in categories_vec[category]:
                     categories_vec[category][token] = 0.0
-                categories_vec[category][token] -= term_weights[doc][token] / (N - categories_cnt[category]) / categories_cnt[c] * BETA
+                categories_vec[category][token] -= term_weights[doc][token] / (N - categories_cnt[category]) / \
+                                                   categories_cnt[c] * BETA
     normalize_doc(categories_vec[category])
 
 f = open(f"{TEST_SET_CORPUS_PATH}/prediction.labels", "w")
@@ -117,14 +138,12 @@ for doc_full in test_docs:
     original_doc = "./" + "/".join(doc_full.split("/")[1:])
     doc = doc_full[0].split("/")[-1]
     sentence = open(doc_full, "r").read()
-    doc_tokens = nltk.word_tokenize(sentence)
-    doc_tokens = nltk.pos_tag(doc_tokens)
-    doc_tokens = map(lambda x: x[0] + x[1], doc_tokens)
+    doc_tokens = custom_tokenize(sentence)
     for token in doc_tokens:
         if token not in test_vec_cnt:
             test_vec_cnt[token] = 0.0
         test_vec_cnt[token] = test_vec_cnt[token] + 1
-    for token in test_vec_cnt.keys():
+    for token in doc_tokens:
         test_vec[token] = math.log(1 + test_vec_cnt[token]) * math.log(N / (1 + df.get(token, 0)))
     normalize_doc(test_vec)
 

@@ -1,9 +1,16 @@
 import argparse
 import math
+import string
+import re
 
 import nltk
 import numpy as np
 from sklearn.model_selection import KFold
+
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+
+lemmatizer = WordNetLemmatizer()
 
 
 # nltk.download('punkt')
@@ -24,6 +31,19 @@ def doc_vector_dot(vec1, vec2):
     for term in common:
         ret += vec1[term] * vec2[term]
     return ret
+
+
+def custom_tokenize(s):
+    s = s.lower()  # lower case
+    s = re.sub(" \d+", " ", s)  # remove number
+    tks = list(filter(lambda x: x not in set(stopwords.words('english')),
+                      nltk.word_tokenize(s)))  # tokenize and filter stop words
+    # PUNC = set(string.punctuation)
+    # tks = list(filter(lambda x: x[0] not in PUNC, map(lamb    da x: list(x), nltk.pos_tag(tks))))  # pos tag
+    # for tk in tks:
+    #     tk[0] = lemmatizer.lemmatize(tk[0])  # lemmatization
+    # tks = map(lambda x: x[0], tks)  # incorporate POS
+    return tks
 
 
 parser = argparse.ArgumentParser(description="Text Categorization Script")
@@ -49,8 +69,8 @@ for i, (train_idx, test_idx) in enumerate(kf.split(total_train_docs)):
     test_docs = list(total_train_docs[test_idx])
 
     N = float(len(train_docs))
-    ALPHA = 1
-    BETA = 1
+    ALPHA = 0.8
+    BETA = 0.2
 
     tf_cnt = {}
     df = {}
@@ -64,8 +84,7 @@ for i, (train_idx, test_idx) in enumerate(kf.split(total_train_docs)):
     for doc_full in train_docs:
         doc = doc_full[0].split("/")[-1]
         sentence = open(doc_full[0], "r").read()
-        doc_tokens = nltk.word_tokenize(sentence)
-        # doc_tokens = TreebankWordTokenizer().tokenize(sentence)
+        doc_tokens = custom_tokenize(sentence)
         tf_cnt[doc] = {}
         for token in doc_tokens:
             if token not in tf_cnt[doc]:
@@ -123,8 +142,7 @@ for i, (train_idx, test_idx) in enumerate(kf.split(total_train_docs)):
         original_doc = "./" + "/".join(doc_full.split("/")[1:])
         doc = doc_full[0].split("/")[-1]
         sentence = open(doc_full, "r").read()
-        doc_tokens = nltk.word_tokenize(sentence)
-        # doc_tokens = TreebankWordTokenizer().tokenize(sentence)
+        doc_tokens = custom_tokenize(sentence)
 
         for token in doc_tokens:
             if token not in test_vec_cnt:

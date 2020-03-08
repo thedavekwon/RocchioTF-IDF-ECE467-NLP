@@ -125,7 +125,7 @@ for category in categories_cnt.keys():
                                                    categories_cnt[c] * BETA
     normalize_doc(categories_vec[category])
 
-f = open(f"{TEST_SET_CORPUS_PATH}/prediction.labels", "w")
+f = open(TEST_SET_CORPUS_PATH+"/prediction.labels", "w")
 
 for doc_full in test_docs:
     max_rocchio_dict = {}
@@ -152,5 +152,5 @@ for doc_full in test_docs:
         if rocchio > max_rocchio:
             max_rocchio = rocchio
             max_category = category
-    f.write(f"{original_doc} {max_category}\n")
+    f.write("{} {}\n".format(original_doc, max_category))
 f.close()

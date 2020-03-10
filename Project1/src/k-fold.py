@@ -9,12 +9,19 @@ from sklearn.model_selection import KFold
 
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
+from nltk.stem import PorterStemmer
 
 lemmatizer = WordNetLemmatizer()
+stemmer = PorterStemmer()
 
+PUNC = set(string.punctuation)
 
 # nltk.download('punkt')
 # nltk.download('averaged_perceptron_tagger')
+ALPHA = 0.95
+BETA = 0.05
+CATEGORY_TYPE = 0
+
 
 def normalize_doc(term_weights_doc):
     norm = 0.0
@@ -33,16 +40,34 @@ def doc_vector_dot(vec1, vec2):
     return ret
 
 
-def custom_tokenize(s):
-    s = s.lower()  # lower case
-    s = re.sub(" \d+", " ", s)  # remove number
-    tks = list(filter(lambda x: x not in set(stopwords.words('english')),
-                      nltk.word_tokenize(s)))  # tokenize and filter stop words
-    # PUNC = set(string.punctuation)
-    # tks = list(filter(lambda x: x[0] not in PUNC, map(lamb    da x: list(x), nltk.pos_tag(tks))))  # pos tag
-    # for tk in tks:
-    #     tk[0] = lemmatizer.lemmatize(tk[0])  # lemmatization
-    # tks = map(lambda x: x[0], tks)  # incorporate POS
+def custom_tokenize(s, t):
+    if t == 1:
+        s = s.lower()  # lower case
+        s = re.sub(" \d+", " ", s)  # remove number
+        tks = [x for x in nltk.word_tokenize(s)]  # tokenize and filter stopword
+        tks = [list(x) for x in nltk.pos_tag(tks) if
+               x[0] not in PUNC and (x[1][0] == 'N' or x[1][0] == 'V' or x[1][0] == 'J')]
+        for tk in tks:
+            tk[0] = stemmer.stem(lemmatizer.lemmatize(tk[0]))  # lemmatization
+        tks = list(map(lambda x: x[0] + x[1][0], tks))  # incorporate POS
+    elif t == 2:
+        s = s.lower()  # lower case
+        s = re.sub(" \d+", " ", s)  # remove number
+        tks = [stemmer.stem(lemmatizer.lemmatize(x)) for x in nltk.word_tokenize(s) if len(x) > 2]  # tokenize and filter stopword
+        # tks = [list(x) for x in nltk.pos_tag(tks) if (x[1][0] == 'N' or x[1][0] == 'V')]
+        # for tk in tks:
+        #     tk[0] = stemmer.stem(lemmatizer.lemmatize(tk[0]))  # lemmatization
+        # tks = list(map(lambda x: x[0], tks))  # incorporate POS
+    elif t == 3:
+        s = s.lower()  # lower case
+        s = re.sub(" \d+", " ", s)  # remove number
+        tks = [x for x in nltk.word_tokenize(s) if
+               x not in set(stopwords.words('english')) and len(x) >= 2]  # tokenize and filter stopword
+        tks = [list(x) for x in nltk.pos_tag(tks) if
+               x[0] not in PUNC and (x[1][0] == 'N' or x[1][0] == 'J' or x[1][0] == 'V')]
+        for tk in tks:
+            tk[0] = stemmer.stem(lemmatizer.lemmatize(tk[0]))  # lemmatization
+        tks = list(map(lambda x: x[0] + x[1][0], tks))  # incorporate POS
     return tks
 
 
@@ -69,8 +94,6 @@ for i, (train_idx, test_idx) in enumerate(kf.split(total_train_docs)):
     test_docs = list(total_train_docs[test_idx])
 
     N = float(len(train_docs))
-    ALPHA = 0.8
-    BETA = 0.2
 
     tf_cnt = {}
     df = {}
@@ -83,8 +106,30 @@ for i, (train_idx, test_idx) in enumerate(kf.split(total_train_docs)):
 
     for doc_full in train_docs:
         doc = doc_full[0].split("/")[-1]
+        categories[doc] = doc_full[1]
+        if doc_full[1] not in categories_cnt:
+            categories_cnt[doc_full[1]] = 0.0
+            categories_inv[doc_full[1]] = []
+        categories_cnt[doc_full[1]] += 1
+        categories_inv[doc_full[1]].append(doc)
+
+    if "Str" in categories_cnt.keys():
+        CATEGORY_TYPE = 1
+        ALPHA = 0.8
+        BETA = 0.2
+    elif "I" in categories_cnt.keys():
+        CATEGORY_TYPE = 2
+        ALPHA = 1.0
+        BETA = 0
+    elif "Wor" in categories_cnt.keys():
+        CATEGORY_TYPE = 3
+        ALPHA = 0.95
+        BETA = 0.05
+
+    for doc_full in train_docs:
+        doc = doc_full[0].split("/")[-1]
         sentence = open(doc_full[0], "r").read()
-        doc_tokens = custom_tokenize(sentence)
+        doc_tokens = custom_tokenize(sentence, CATEGORY_TYPE)
         tf_cnt[doc] = {}
         for token in doc_tokens:
             if token not in tf_cnt[doc]:
@@ -103,15 +148,6 @@ for i, (train_idx, test_idx) in enumerate(kf.split(total_train_docs)):
                 term_weights[doc][token] = math.log(1 + tf_cnt[doc][token]) * math.log(N / df[token])
         normalize_doc(term_weights[doc])
 
-    for doc_full in train_docs:
-        doc = doc_full[0].split("/")[-1]
-        categories[doc] = doc_full[1]
-        if doc_full[1] not in categories_cnt:
-            categories_cnt[doc_full[1]] = 0.0
-            categories_inv[doc_full[1]] = []
-        categories_cnt[doc_full[1]] += 1
-        categories_inv[doc_full[1]].append(doc)
-
     # find category vector
     for category in categories_cnt.keys():
         categories_vec[category] = {}
@@ -128,7 +164,7 @@ for i, (train_idx, test_idx) in enumerate(kf.split(total_train_docs)):
                     categories_vec[category][token] -= term_weights[doc][token] / (N - categories_cnt[category]) * BETA
         normalize_doc(categories_vec[category])
 
-    f = open(f"{TEST_SET_CORPUS_PATH}/prediction{i}.labels", "w")
+    f = open(f"prediction{i}.labels", "w")
 
     for doc_full in test_docs:
         doc_full = doc_full[0]
@@ -142,7 +178,7 @@ for i, (train_idx, test_idx) in enumerate(kf.split(total_train_docs)):
         original_doc = "./" + "/".join(doc_full.split("/")[1:])
         doc = doc_full[0].split("/")[-1]
         sentence = open(doc_full, "r").read()
-        doc_tokens = custom_tokenize(sentence)
+        doc_tokens = custom_tokenize(sentence, CATEGORY_TYPE)
 
         for token in doc_tokens:
             if token not in test_vec_cnt:
